@@ -33,7 +33,8 @@ def get_rider_team(bib, datajson):
 
 # Création de la fenêtre principale
 root = tk.Tk()
-root.title("Gestion des données avec Treeview")
+root.title("Tour de France 2025 - Suivi des coureurs")
+
 
 
 
@@ -43,7 +44,7 @@ tree.heading("prenom",text="Prénom")
 tree.heading("bib",text="Team")
 tree.column("nom",width=150,anchor="center")
 tree.column("prenom",width=150,anchor="center")
-tree.column("bib",width=150,anchor="center")
+tree.column("bib",width=200,anchor="center")
 
 
 tree.tag_configure('parentrow', background='lightgrey')
@@ -61,24 +62,79 @@ def reload():
     if found :
         url = "https://racecenter.letour.fr/api/pack-2025-"
 
-
         resp = requests.get(url+stageNb, verify=False)
         respJson = resp.json()
-        tree.delete(*tree.get_children())
+
+        if len(respJson) == 0:
+            tree.delete(*tree.get_children())
+            tree.insert("", "end", text="Pas d'étape en cours", values=("ou pb de données", "",""), tags=('parentrow',))
+            root.after(10000, reload)
+            return
+
+        #list of current groups
+        currentGroupList = []
+
+        
+        # Get existing items
+        existing_items = tree.get_children('')
 
         print(respJson[0]["groups"][0]["name"], end=" : ")
         print(respJson[0]["groups"][0]["remainingDistance"]/1000, end='')
         print("km", end="  (")
         print(len(respJson[0]["groups"][0]["bibs"]), end=" coureurs)\n")
-        parent_id = tree.insert("", "end",text=respJson[0]["groups"][0]["name"],values=( str(round(respJson[0]["groups"][0]["remainingDistance"]/1000,1)) + " km","", str(len(respJson[0]["groups"][0]["bibs"])) + " coureurs"), tags = ('parentrow',))
+ 
+        # Update or create first group
+        group_data = respJson[0]["groups"][0]
+        values = (
+            f"{round(group_data['remainingDistance']/1000, 1)} km",
+            "",
+            f"{len(group_data['bibs'])} coureurs"
+        )
         
-        for bib in respJson[0]["groups"][0]["bibs"]:
-            riderName = get_rider_name(bib["bib"], respJson)
-            if riderName:
-                tree.insert(parent_id, "end",text=bib["bib"],values=(riderName.split()[1], riderName.split()[0], get_rider_team(bib["bib"], respJson)))
+        if existing_items:
+            # Update existing group
+            parent_id = existing_items[0]
+            tree.item(parent_id, text=group_data["name"], values=values)
+        else:
+            # Create new group
+            parent_id = tree.insert("", "end", text=group_data["name"], values=values, tags=('parentrow',))
+        
+        currentGroupList.append(parent_id)
+
+         # Get existing riders for this group
+        existing_riders = tree.get_children(parent_id)
+        current_riders = {bib["bib"]: bib for bib in group_data["bibs"]}
+
+         # Update or create riders
+        for bib in sorted(current_riders.keys()):
+            rider_name = get_rider_name(bib, respJson)
+            if rider_name:
+                rider_values = (rider_name.split()[1], rider_name.split()[0], get_rider_team(bib, respJson))
+                
+                # Find if rider already exists
+                rider_item = None
+                for item in existing_riders:
+                    if tree.item(item)['text'] == str(bib):
+                        rider_item = item
+                        break
+
+                if rider_item:
+                    # Update existing rider
+                    tree.item(rider_item, values=rider_values)
+                else:
+                    # Add new rider
+                    tree.insert(parent_id, "end", text=str(bib), values=rider_values)
+
+        # Remove riders that are no longer in the group
+        for item in existing_riders:
+            if tree.item(item)['text'] not in [str(bib) for bib in current_riders]:
+                tree.delete(item)
 
 
 
+
+
+        # Other groups
 
         for i in range(1, len(respJson[0]["groups"])):
             print(respJson[0]["groups"][i]["name"], end=" : ")
@@ -125,18 +181,59 @@ def reload():
                 gapTimeStr  +=" min"
             else:
                 gapTimeStr = str(gapTime) + "s"
-            parent_id = tree.insert("", "end",text=respJson[0]["groups"][i]["name"],values=("","+ " + gapTimeStr, str(len(respJson[0]["groups"][i]["bibs"])) + " coureurs"), tags = ('parentrow',))
-            for bib in respJson[0]["groups"][i]["bibs"]:
-                riderName = get_rider_name(bib["bib"], respJson)
-                if riderName:
-                    tree.insert(parent_id, "end",text=bib["bib"],values=(riderName.split()[1], riderName.split()[0], get_rider_team(bib["bib"], respJson)))
+            
+            group_data = respJson[0]["groups"][i]
+            values = ("", f"+ {gapTimeStr}", f"{len(group_data['bibs'])} coureurs")
 
+            # Find or create group
+            group_item = None
+            if len(existing_items) > i:
+                group_item = existing_items[i]
+                tree.item(group_item, text=group_data["name"], values=values)
+            else:
+                group_item = tree.insert("", "end", text=group_data["name"], values=values, tags=('parentrow',))
+            
+            currentGroupList.append(group_item)
 
+            #Get existing riders for this group
+            existing_riders = tree.get_children(group_item)
+            current_riders = {bib["bib"]: bib for bib in group_data["bibs"]}
 
+             # Update or create riders
+            for bib in sorted(current_riders.keys()):
+                rider_name = get_rider_name(bib, respJson)
+                if rider_name:
+                    rider_values = (rider_name.split()[1], rider_name.split()[0], get_rider_team(bib, respJson))
+                    
+                    # Find if rider already exists
+                    rider_item = None
+                    for item in existing_riders:
+                        if tree.item(item)['text'] == str(bib):
+                            rider_item = item
+                            break
+
+                    if rider_item:
+                        # Update existing rider
+                        tree.item(rider_item, values=rider_values)
+                    else:
+                        # Add new rider
+                        tree.insert(group_item, "end", text=str(bib), values=rider_values)
+
+            # Remove riders that are no longer in the group
+            for item in existing_riders:
+                if tree.item(item)['text'] not in [str(bib) for bib in current_riders]:
+                    tree.delete(item)
+
+        # delete groups that are not in the currentGroupList
+        for item in existing_items:
+            if item not in currentGroupList:
+                tree.delete(item) 
 
         resp.close()
     else:
         print("No stage today.")
+        tree.delete(*tree.get_children())
+        tree.insert("", "end", text="Pas d'étape aujourd'hui", values=("ou pb de données", "",""), tags=('parentrow',))
     root.after(10000, reload)
     
 
