@@ -17,15 +17,15 @@ found = False
 def get_rider_name(bib, datajson):
     for rider in range(1, len(datajson) - 1):
         if datajson[rider]["bib"] == bib:
-            return datajson[rider]["firstname"] + " " + datajson[rider]["lastname"]
+            return (datajson[rider]["firstname"], datajson[rider]["lastname"])
         
 def get_rider_team(bib, datajson):
     teamId = ""
-    for rider in range(1, len(datajson) - 1):
+    for rider in range(1, len(datajson) ):
         if datajson[rider]["bib"] == bib:
             teamId = datajson[rider]["_parent"][10:]
             break
-    for team in range(1, len(datajson) - 1):
+    for team in range(1, len(datajson)):
         if datajson[team]["_id"] == teamId:
             return datajson[team]["name"]
             
@@ -62,8 +62,13 @@ def reload():
     if found :
         url = "https://racecenter.letour.fr/api/pack-2025-"
 
-        resp = requests.get(url+stageNb, verify=False)
-        respJson = resp.json()
+        try : 
+
+            resp = requests.get(url+stageNb, verify=False)
+            respJson = resp.json()
+        except :
+            print("Error fetching data from the API.")
+            respJson = []
 
         if len(respJson) == 0:
             tree.delete(*tree.get_children())
@@ -109,7 +114,7 @@ def reload():
         for bib in sorted(current_riders.keys()):
             rider_name = get_rider_name(bib, respJson)
             if rider_name:
-                rider_values = (rider_name.split()[1], rider_name.split()[0], get_rider_team(bib, respJson))
+                rider_values = (rider_name[1], rider_name[0], get_rider_team(bib, respJson))
                 
                 # Find if rider already exists
                 rider_item = None
@@ -169,10 +174,10 @@ def reload():
                 bib = respJson[0]["groups"][i]["bibs"][0]["bib"]
                 riderName = get_rider_name(bib, respJson)
                 if riderName:
-                    print("  (" + riderName + ")")
+                    print("  (" + riderName[0] + " "+ rider_name[1] + ")")
 
             gapTime = respJson[0]["groups"][i]["computedRelative"]
-            if gapTime > 60:
+            if gapTime >= 60:
                 gapTimeStr = str(gapTime//60) + ":" 
                 if gapTime % 60 < 10:
                     gapTimeStr  +="0" + str(gapTime % 60)
@@ -203,7 +208,7 @@ def reload():
             for bib in sorted(current_riders.keys()):
                 rider_name = get_rider_name(bib, respJson)
                 if rider_name:
-                    rider_values = (rider_name.split()[1], rider_name.split()[0], get_rider_team(bib, respJson))
+                    rider_values = (rider_name[1], rider_name[0], get_rider_team(bib, respJson))
                     
                     # Find if rider already exists
                     rider_item = None
