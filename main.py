@@ -128,7 +128,14 @@ def reload():
                     tree.item(rider_item, values=rider_values)
                 else:
                     # Add new rider
-                    tree.insert(parent_id, "end", text=str(bib), values=rider_values)
+                    indexToAdd = "end"
+                    for i in range(len(existing_riders)):
+                        if int(tree.item(existing_riders[i])["text"]) > bib:
+                            indexToAdd = i+1
+                            print("indexToAdd", indexToAdd)
+                            break
+                    
+                    tree.insert(parent_id, indexToAdd, text=str(bib), values=rider_values)
 
         # Remove riders that are no longer in the group
         for item in existing_riders:
@@ -221,6 +228,12 @@ def reload():
                         # Update existing rider
                         tree.item(rider_item, values=rider_values)
                     else:
+                        indexToAdd = "end"
+                        for i in range(len(existing_riders)):
+                            if int(tree.item(existing_riders[i])["text"]) > bib:
+                                indexToAdd = i+1
+                                print("indexToAdd", indexToAdd)
+                                break
                         # Add new rider
                         tree.insert(group_item, "end", text=str(bib), values=rider_values)
 
